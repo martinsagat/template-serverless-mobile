@@ -1,0 +1,94 @@
+name: Deploy Platform to Production
+
+# Required GitHub Environment "production" with:
+#   - Secret AWS_DEPLOY_ROLE_ARN — IAM role ARN for OIDC-federated SST deploys
+#   - Variable AWS_REGION (optional, defaults to ap-southeast-2)
+#   - Add any project-specific secrets that SST consumes via `sst secret set`
+#     in the "Set SST secrets" step below (the example block is commented out).
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: platform-deploy-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  deploy:
+    name: Deploy SST to Production
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo local cache
+        uses: actions/cache@v4
+        with:
+          path: platform/.turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('platform/pnpm-lock.yaml', 'platform/turbo.json', 'platform/**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Run Turbo quality checks
+        run: pnpm turbo run lint typecheck test --summarize
+
+      - name: Typecheck infra
+        run: pnpm typecheck:infra
+
+      - name: Upload Turbo run summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbo-summaries-production
+          path: platform/.turbo/runs/
+          if-no-files-found: ignore
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+
+      # Wire any project-specific secrets that SST consumes here. Each one needs
+      # a matching `sst secret set` call. Example:
+      #
+      # - name: Set SST secrets from GitHub
+      #   env:
+      #     STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      #   run: |
+      #     pnpm exec sst secret set StripeSecretKey "$STRIPE_SECRET_KEY" --stage production
+
+      - name: Deploy to Production
+        run: pnpm exec sst deploy --stage production
+        timeout-minutes: 35
+
+      # Uncomment once you wire a `migrate` script into apps/api:
+      # - name: Run migrations
+      #   run: pnpm exec sst shell --stage production -- pnpm --filter @app/api run migrate
+      #   timeout-minutes: 5

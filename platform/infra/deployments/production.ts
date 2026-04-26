@@ -1,13 +1,39 @@
 import { createAppApis } from '../api';
-import { createAppAuth } from '../auth';
+import { attachCognitoCustomDomain, createAppAuth } from '../auth';
+import type { AppDomainConfig } from '../domain';
 import { createAppTable } from '../table';
 import { createAppWeb } from '../web';
 
+// Set this to enable custom domains for the production stage. The hosted zone
+// must live in Route 53 in this AWS account. See infra/domain.ts.
+//
+// const DOMAIN: AppDomainConfig | undefined = {
+//   name: 'myapp.com',
+//   hostedZone: 'myapp.com',
+// };
+const DOMAIN: AppDomainConfig | undefined = undefined;
+
+// Flip these to `true` once the corresponding SST secrets are set for the
+// production stage. See README "Social sign-in (Google + Apple)".
+const ENABLE_GOOGLE_SSO = false;
+const ENABLE_APPLE_SSO = false;
+
 export async function deployProduction() {
   const table = createAppTable();
-  const auth = createAppAuth();
-  const apis = createAppApis({ table, auth });
-  const web = createAppWeb({ apis, auth });
+  const auth = createAppAuth({
+    domain: DOMAIN,
+    enableGoogleSso: ENABLE_GOOGLE_SSO,
+    enableAppleSso: ENABLE_APPLE_SSO,
+  });
+  const apis = createAppApis({ table, auth, domain: DOMAIN });
+  const web = createAppWeb({ apis, auth, domain: DOMAIN });
+  if (DOMAIN) {
+    attachCognitoCustomDomain({
+      auth,
+      domain: DOMAIN,
+      dependsOn: [web.landing],
+    });
+  }
 
   return {
     region: aws.getRegionOutput().name,

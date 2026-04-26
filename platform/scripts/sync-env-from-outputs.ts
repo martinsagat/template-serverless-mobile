@@ -42,6 +42,7 @@ const ADMIN_MAPPING: Mapping = [
   ['adminClientId', 'NEXT_PUBLIC_ADMIN_CLIENT_ID'],
   ['adminApiUrl', 'NEXT_PUBLIC_ADMIN_API_URL'],
   ['cognitoOAuthDomain', 'NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN'],
+  ['adminUrl', 'NEXT_PUBLIC_ADMIN_URL'],
 ];
 
 function loadOutputs(): Outputs {

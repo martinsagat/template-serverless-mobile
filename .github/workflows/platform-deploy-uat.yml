@@ -1,0 +1,114 @@
+name: Deploy Platform to UAT
+
+# Required GitHub Environment "uat" with:
+#   - Secret AWS_DEPLOY_ROLE_ARN — IAM role ARN for OIDC-federated SST deploys
+#     (e.g. arn:aws:iam::123456789012:role/GitHubActionsSSTDeployRole)
+#   - Variable AWS_REGION (optional, defaults to ap-southeast-2)
+#
+# Add per-stage SST secrets in a separate step (see "Set SST secrets" block in
+# platform-deploy-production.yml for the pattern).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "platform/**"
+      - ".github/workflows/platform-*.yml"
+
+concurrency:
+  group: platform-deploy-uat
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  quality:
+    name: Typecheck, lint, and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo local cache
+        uses: actions/cache@v4
+        with:
+          path: platform/.turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('platform/pnpm-lock.yaml', 'platform/turbo.json', 'platform/**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Run Turbo quality checks
+        run: pnpm turbo run lint typecheck test --summarize
+
+      - name: Typecheck infra
+        run: pnpm typecheck:infra
+
+      - name: Upload Turbo run summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbo-summaries-uat
+          path: platform/.turbo/runs/
+          if-no-files-found: ignore
+
+  deploy-uat:
+    name: Deploy SST to UAT
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: uat
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+
+      - name: Deploy to UAT
+        run: pnpm exec sst deploy --stage uat
+        timeout-minutes: 35
+
+      # Uncomment once you wire a `migrate` script into apps/api:
+      # - name: Run migrations (UAT)
+      #   run: pnpm exec sst shell --stage uat -- pnpm --filter @app/api run migrate
+      #   timeout-minutes: 5

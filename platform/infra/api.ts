@@ -1,9 +1,11 @@
 import type { AppAuth } from './auth';
+import { type AppDomainConfig, appSubdomains, sstDomainProp } from './domain';
 import type { AppTable } from './table';
 
 export interface CreateAppApisParams {
   table: AppTable;
   auth: AppAuth;
+  domain?: AppDomainConfig;
 }
 
 export interface AppApis {
@@ -21,13 +23,15 @@ const HONO_ENTRIES = {
  * scoped to that audience's app client(s).
  */
 export function createAppApis(params: CreateAppApisParams): AppApis {
-  const { table, auth } = params;
+  const { table, auth, domain } = params;
+  const sub = domain ? appSubdomains(domain) : undefined;
   const region = aws.getRegionOutput().name;
   const cognitoIssuer = $interpolate`https://cognito-idp.${region}.amazonaws.com/${auth.userPool.id}`;
 
   // Admin API — only the admin web client may mint tokens accepted here.
   const adminApi = new sst.aws.ApiGatewayV2('appAdminApi', {
     link: [table],
+    ...(sub && domain && { domain: sstDomainProp(sub.adminApi, domain) }),
     transform: {
       route: {
         handler: (args) => {
@@ -56,6 +60,7 @@ export function createAppApis(params: CreateAppApisParams): AppApis {
   // Consumer API — accepts both consumer-web and mobile audience tokens.
   const consumerApi = new sst.aws.ApiGatewayV2('appConsumerApi', {
     link: [table],
+    ...(sub && domain && { domain: sstDomainProp(sub.consumerApi, domain) }),
     transform: {
       route: {
         handler: (args) => {

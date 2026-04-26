@@ -60,8 +60,10 @@ When `sst dev` finishes provisioning it prints outputs — note the `consumerApi
 In the AWS Cognito console:
 
 1. Go to your new user pool.
-2. Create two users — one with email `admin@example.com` (assigned to `admin` group), one with `user@example.com` (assigned to `consumer` group).
+2. Create two users — one with email `admin@example.com` (assigned to `admin` group), one with `user@example.com` (assigned to `consumer` group). The pool requires `given_name` (first name) and `family_name` (last name), so fill those in too.
 3. Confirm both manually (set permanent passwords).
+
+> Cognito enforces `email`, `given_name`, and `family_name` as required attributes. Username/password sign-up, Google, and Apple all need to supply all three before the user is created.
 
 ## 5. Run the web admin
 
@@ -78,6 +80,8 @@ pnpm dev:admin   # http://localhost:3001
 ```
 
 Sign in as `admin@example.com`. The widgets table will be empty initially — `POST` a widget via the consumer API or admin API to populate it.
+
+The sign-in page also shows **Continue with Google** / **Continue with Apple** buttons. They are wired to Cognito's Hosted UI but stay disabled at the IdP level until you complete the social-sign-in setup — see [README.md → Social sign-in (Google + Apple)](README.md#social-sign-in-google--apple) for the full walkthrough (create the OAuth credentials, set SST secrets, flip `ENABLE_GOOGLE_SSO` / `ENABLE_APPLE_SSO` in `infra/deployments/<stage>.ts`).
 
 ## 6. Run the mobile app
 
@@ -139,3 +143,5 @@ Production sets `protect: true` in `sst.config.ts` — destructive ops require t
 | `Resource 'appTable' not found` typecheck error | Run `pnpm sst install` once to generate `.sst/platform/` types |
 | Admin portal build fails locally with env errors | That's expected without `.env.local` — SST injects env vars at deploy time |
 | `expo doctor` complains about peer dep mismatches | Run `pnpm install` again after `expo lint` configures ESLint |
+| Cognito IdP deploy fails with empty `client_id` / `private_key` | You flipped `ENABLE_GOOGLE_SSO` / `ENABLE_APPLE_SSO` before setting the secrets — set them with `pnpm sst secret set …` and redeploy |
+| Google / Apple sign-in returns to the app signed-out | Cognito redirected to `/oauth2/idpresponse` but couldn't create the user. The most common cause is missing `given_name` / `family_name` (Apple users must opt-in to share name on first auth) |

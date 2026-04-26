@@ -1,0 +1,109 @@
+# Production build → App Store & Google Play submit (manual trigger)
+name: Mobile Production Release
+
+# Required repository secrets (same set as mobile-preview.yml).
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  build-and-submit:
+    name: EAS Build (production) + Submit to App Store
+    runs-on: ubuntu-latest
+    env:
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+    steps:
+      - name: Check for required secrets
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "Add EXPO_TOKEN to repository secrets (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.EAS_PROJECT_ID }}" ]; then
+            echo "Add EAS_PROJECT_ID to repository secrets (Expo dashboard → Project → Settings)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}" ]; then
+            echo "For Google Play submit, add GOOGLE_SERVICE_ACCOUNT_KEY (service account JSON) to repository secrets"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: mobile/pnpm-lock.yaml
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build iOS (production)
+        run: eas build --profile production --platform ios --non-interactive
+
+      - name: Prepare App Store Connect API key
+        run: |
+          CONTENT='${{ secrets.ASC_API_KEY_BASE64 }}'
+          if echo "$CONTENT" | base64 -d > "$RUNNER_TEMP/AuthKey.p8" 2>/dev/null && head -1 "$RUNNER_TEMP/AuthKey.p8" | grep -q "BEGIN"; then
+            : # decoded base64 successfully
+          else
+            echo "$CONTENT" > "$RUNNER_TEMP/AuthKey.p8"
+          fi
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: Configure submit profile with ASC API key (non-interactive)
+        run: |
+          jq --arg path "${{ env.ASC_KEY_PATH }}" \
+             --arg issuer "${{ secrets.ASC_ISSUER_ID }}" \
+             --arg keyId "${{ secrets.ASC_KEY_ID }}" \
+             '.submit.production.ios = ((.submit.production.ios // {}) + {ascApiKeyPath: $path, ascApiKeyIssuerId: $issuer, ascApiKeyId: $keyId})' \
+             eas.json > eas.json.tmp && mv eas.json.tmp eas.json
+
+      - name: Submit to App Store
+        env:
+          EXPO_ASC_API_KEY_PATH: ${{ env.ASC_KEY_PATH }}
+          EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          EXPO_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          EXPO_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          EXPO_APPLE_TEAM_TYPE: ${{ secrets.APPLE_TEAM_TYPE }}
+        run: eas submit --latest --platform ios --profile production --non-interactive
+
+      - name: Build Android (production)
+        run: eas build --profile production --platform android --non-interactive
+
+      - name: Prepare Google Play service account key
+        run: |
+          CONTENT='${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}'
+          if echo "$CONTENT" | base64 -d > "$RUNNER_TEMP/google-play-key.json" 2>/dev/null && head -1 "$RUNNER_TEMP/google-play-key.json" | grep -q "^{"; then
+            : # decoded base64 successfully
+          else
+            echo "$CONTENT" > "$RUNNER_TEMP/google-play-key.json"
+          fi
+          echo "EXPO_ANDROID_SERVICE_ACCOUNT_KEY_PATH=$RUNNER_TEMP/google-play-key.json" >> "$GITHUB_ENV"
+
+      - name: Configure submit profile with Google Service Account key (non-interactive)
+        run: |
+          jq --arg path "$RUNNER_TEMP/google-play-key.json" \
+             '.submit.production.android = ((.submit.production.android // {}) + {serviceAccountKeyPath: $path})' \
+             eas.json > eas.json.tmp && mv eas.json.tmp eas.json
+
+      - name: Submit to Google Play
+        run: eas submit --latest --platform android --profile production --non-interactive

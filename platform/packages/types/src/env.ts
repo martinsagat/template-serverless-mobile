@@ -12,6 +12,7 @@ export const PublicEnvSchema = z.object({
   NEXT_PUBLIC_ADMIN_API_URL: z.string().url(),
   NEXT_PUBLIC_CONSUMER_API_URL: z.string().url().optional(),
   NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN: z.string().min(1).optional(),
+  NEXT_PUBLIC_ADMIN_URL: z.string().url().optional(),
 });
 
 export type PublicEnv = z.infer<typeof PublicEnvSchema>;

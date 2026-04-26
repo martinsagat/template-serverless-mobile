@@ -1,9 +1,10 @@
 'use client';
 
-import { useAuth } from '@app/auth';
+import { type FederatedProvider, useAuth } from '@app/auth';
 import { AppButton } from '@app/ui';
 import Alert from '@mui/material/Alert';
 import Container from '@mui/material/Container';
+import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -11,12 +12,14 @@ import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 
 export default function SignInPage() {
-  const { signIn, status } = useAuth();
+  const { signIn, signInWithProvider, status } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [federatedPending, setFederatedPending] =
+    useState<FederatedProvider | null>(null);
 
   useEffect(() => {
     if (status === 'signed-in') router.replace('/widgets');
@@ -34,6 +37,22 @@ export default function SignInPage() {
       setPending(false);
     }
   }
+
+  async function onFederated(provider: FederatedProvider) {
+    setError(null);
+    setFederatedPending(provider);
+    try {
+      await signInWithProvider(provider);
+      // Browser is redirected to the IdP; nothing else happens on this page.
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : `${provider} sign-in failed`,
+      );
+      setFederatedPending(null);
+    }
+  }
+
+  const anyPending = pending || federatedPending !== null;
 
   return (
     <Container maxWidth="xs" sx={{ py: 8 }}>
@@ -60,8 +79,31 @@ export default function SignInPage() {
           required
           fullWidth
         />
-        <AppButton type="submit" disabled={pending} fullWidth>
+        <AppButton type="submit" disabled={anyPending} fullWidth>
           {pending ? 'Signing in…' : 'Sign in'}
+        </AppButton>
+        <Divider>or</Divider>
+        <AppButton
+          type="button"
+          variant="outlined"
+          disabled={anyPending}
+          onClick={() => onFederated('Google')}
+          fullWidth
+        >
+          {federatedPending === 'Google'
+            ? 'Redirecting to Google…'
+            : 'Continue with Google'}
+        </AppButton>
+        <AppButton
+          type="button"
+          variant="outlined"
+          disabled={anyPending}
+          onClick={() => onFederated('Apple')}
+          fullWidth
+        >
+          {federatedPending === 'Apple'
+            ? 'Redirecting to Apple…'
+            : 'Continue with Apple'}
         </AppButton>
       </Stack>
     </Container>

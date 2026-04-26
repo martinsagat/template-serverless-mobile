@@ -19,6 +19,7 @@ export function env(): PublicEnv {
       NEXT_PUBLIC_ADMIN_API_URL: process.env.NEXT_PUBLIC_ADMIN_API_URL,
       NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN:
         process.env.NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN,
+      NEXT_PUBLIC_ADMIN_URL: process.env.NEXT_PUBLIC_ADMIN_URL,
     });
   }
   return cached;
