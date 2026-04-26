@@ -1,5 +1,4 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
+import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
 import {
   CreateWidgetInputSchema,
   createWidget,
@@ -15,6 +14,12 @@ import {
 } from '../../../services/widget';
 import { type AuthVariables, getAuth } from '../../middleware/auth';
 
+/**
+ * Routes throw — service errors flow up to the global errorHandler middleware
+ * which converts ServiceError -> HTTP. We don't catch in routes because
+ * @hono/zod-openapi's strict response typing rejects mixing 2xx and 4xx
+ * returns from a single handler.
+ */
 export const widgetRoutes = new OpenAPIHono<{ Variables: AuthVariables }>();
 
 const listRoute = createRoute({
@@ -71,23 +76,12 @@ const getRoute = createRoute({
       description: 'OK',
       content: { 'application/json': { schema: WidgetDtoSchema } },
     },
-    404: {
-      description: 'Not found',
-      content: {
-        'application/json': {
-          schema: z.object({
-            error: z.object({ code: z.string(), message: z.string() }),
-          }),
-        },
-      },
-    },
   },
 });
 
 widgetRoutes.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const widget = await getWidget(id);
-  if (!widget) throw new HTTPException(404, { message: 'Widget not found' });
+  const widget = await getWidget(id); // throws ServiceError.notFound -> 404
   return c.json(widget, 200);
 });
 
@@ -113,8 +107,7 @@ const updateRoute = createRoute({
 widgetRoutes.openapi(updateRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
-  const widget = await updateWidget(id, body);
-  if (!widget) throw new HTTPException(404, { message: 'Widget not found' });
+  const widget = await updateWidget(id, body); // throws ServiceError.notFound -> 404
   return c.json(widget, 200);
 });
 

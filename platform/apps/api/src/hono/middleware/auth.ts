@@ -48,6 +48,8 @@ export const authMiddleware: MiddlewareHandler<{
     throw new HTTPException(401, { message: 'Unauthenticated' });
   }
   c.set('auth', claims);
+  // Enrich the request log with the caller's identity for traceability.
+  c.get('log')?.setContext({ userSub: claims.userId, userEmail: claims.email });
   await next();
 };
 

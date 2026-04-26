@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { WidgetEntity, type WidgetEntityItem } from '../../db/entities/Widget';
+import { ServiceError } from '../../lib/errors';
 import type {
   CreateWidgetInput,
   ListWidgetsResponse,
@@ -51,9 +52,11 @@ export async function createWidget(
   return toDto(result.data);
 }
 
-export async function getWidget(widgetId: string): Promise<WidgetDto | null> {
+/** Throws ServiceError.notFound if the widget does not exist. */
+export async function getWidget(widgetId: string): Promise<WidgetDto> {
   const result = await WidgetEntity.get({ widgetId }).go();
-  return result.data ? toDto(result.data) : null;
+  if (!result.data) throw ServiceError.notFound('Widget');
+  return toDto(result.data);
 }
 
 export async function listWidgetsByOwner(
@@ -84,10 +87,11 @@ export async function listAllWidgets(
   };
 }
 
+/** Throws ServiceError.notFound if the widget does not exist. */
 export async function updateWidget(
   widgetId: string,
   input: UpdateWidgetInput,
-): Promise<WidgetDto | null> {
+): Promise<WidgetDto> {
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.description !== undefined) patch.description = input.description;
@@ -95,27 +99,22 @@ export async function updateWidget(
   const result = await WidgetEntity.patch({ widgetId })
     .set(patch as never)
     .go({ response: 'all_new' });
-  return result.data ? toDto(result.data as WidgetEntityItem) : null;
+  if (!result.data) throw ServiceError.notFound('Widget');
+  return toDto(result.data as WidgetEntityItem);
 }
 
 export async function deleteWidget(widgetId: string): Promise<void> {
   await WidgetEntity.delete({ widgetId }).go();
 }
 
-export class WidgetOwnershipError extends Error {
-  constructor(message = 'Widget does not belong to caller') {
-    super(message);
-    this.name = 'WidgetOwnershipError';
-  }
-}
-
-/** Used by consumer routes: confirms the widget belongs to the caller. */
+/** Used by consumer routes: throws if the widget doesn't exist or doesn't belong to the caller. */
 export async function getOwnedWidget(
   widgetId: string,
   ownerId: string,
-): Promise<WidgetDto | null> {
-  const widget = await getWidget(widgetId);
-  if (!widget) return null;
-  if (widget.ownerId !== ownerId) throw new WidgetOwnershipError();
+): Promise<WidgetDto> {
+  const widget = await getWidget(widgetId); // throws notFound
+  if (widget.ownerId !== ownerId) {
+    throw ServiceError.unauthorized('Widget does not belong to caller');
+  }
   return widget;
 }
