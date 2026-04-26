@@ -1,0 +1,28 @@
+{
+  "name": "@app/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run --passWithNoTests",
+    "migrate": "echo 'No migrations defined yet.'"
+  },
+  "dependencies": {
+    "@app/types": "workspace:*",
+    "@aws-sdk/client-dynamodb": "^3.984.0",
+    "@aws-sdk/util-dynamodb": "^3.984.0",
+    "@hono/swagger-ui": "^0.5.3",
+    "@hono/zod-openapi": "^1.2.2",
+    "@hono/zod-validator": "^0.5.0",
+    "electrodb": "^3.7.0",
+    "hono": "^4.7.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.8.0"
+  }
+}

@@ -1,0 +1,1 @@
+export { widgetRoutes } from './widgets';

@@ -1,0 +1,40 @@
+{
+  "name": "@app/auth",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./amplify": "./src/amplify.ts",
+    "./apiClient": "./src/apiClient.ts",
+    "./AuthProvider": "./src/AuthProvider.tsx",
+    "./QueryProvider": "./src/QueryProvider.tsx",
+    "./hooks": "./src/hooks.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@app/types": "workspace:*",
+    "aws-amplify": "^6.14.0"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "^5.9.3"
+  }
+}

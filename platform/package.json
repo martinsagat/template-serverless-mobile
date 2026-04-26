@@ -1,0 +1,47 @@
+{
+  "name": "app-platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "NODE_OPTIONS='--no-deprecation' sst dev",
+    "dev:admin": "pnpm --filter admin run dev",
+    "dev:landing": "pnpm --filter landing run dev",
+    "diff": "sst diff",
+    "deploy": "sst deploy",
+    "deploy:uat": "sst deploy --stage uat",
+    "deploy:production": "sst deploy --stage production",
+    "remove": "sst remove",
+    "console": "sst console",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "typecheck:infra": "tsc --noEmit -p infra/tsconfig.json",
+    "test": "turbo run test",
+    "test:coverage": "vitest run --coverage",
+    "lint": "turbo run lint",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "migrate": "pnpm exec sst shell -- pnpm --filter @app/api run migrate",
+    "rename": "tsx bin/rename.ts",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@tsconfig/node22": "^22.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "husky": "^9.1.7",
+    "jsdom": "^28.1.0",
+    "lint-staged": "^16.2.7",
+    "sst": "^3.17.38",
+    "tsx": "^4.8.0",
+    "turbo": "^2.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

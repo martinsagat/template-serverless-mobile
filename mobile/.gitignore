@@ -1,0 +1,27 @@
+# Dependencies
+node_modules
+
+# Expo / EAS
+.expo
+.expo-shared
+dist
+web-build
+
+# Native
+ios/Pods
+ios/build
+android/build
+android/app/build
+android/.gradle
+*.apk
+*.ipa
+
+# Misc
+.DS_Store
+*.log
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
