@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { WidgetEntity, type WidgetEntityItem } from '../../db/entities/Widget';
 import { ServiceError } from '../../lib/errors';
+import {
+  DEFAULT_PAGE_SIZE,
+  decodeNextToken,
+  electroCursorToNextToken,
+} from '../../lib/pagination';
 import type {
   CreateWidgetInput,
   ListWidgetsResponse,
   UpdateWidgetInput,
   WidgetDto,
 } from './widgetTypes';
-
-const DEFAULT_PAGE_SIZE = 25;
 
 function toDto(item: WidgetEntityItem): WidgetDto {
   return {
@@ -20,21 +23,6 @@ function toDto(item: WidgetEntityItem): WidgetDto {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
-}
-
-function encodeCursor(cursor: unknown): string {
-  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
-}
-
-function decodeCursor(
-  token: string | undefined,
-): Record<string, unknown> | undefined {
-  if (!token) return undefined;
-  try {
-    return JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
-  } catch {
-    return undefined;
-  }
 }
 
 export async function createWidget(
@@ -66,10 +54,10 @@ export async function listWidgetsByOwner(
   const limit = opts.limit ?? DEFAULT_PAGE_SIZE;
   const result = await WidgetEntity.query
     .byOwner({ ownerId })
-    .go({ limit, cursor: decodeCursor(opts.cursor) as never });
+    .go({ limit, cursor: decodeNextToken(opts.cursor ?? '') as never });
   return {
     items: result.data.map(toDto),
-    nextCursor: result.cursor ? encodeCursor(result.cursor) : undefined,
+    nextCursor: electroCursorToNextToken(result.cursor),
   };
 }
 
@@ -79,11 +67,11 @@ export async function listAllWidgets(
   const limit = opts.limit ?? DEFAULT_PAGE_SIZE;
   const result = await WidgetEntity.scan.go({
     limit,
-    cursor: decodeCursor(opts.cursor) as never,
+    cursor: decodeNextToken(opts.cursor ?? '') as never,
   });
   return {
     items: result.data.map(toDto),
-    nextCursor: result.cursor ? encodeCursor(result.cursor) : undefined,
+    nextCursor: electroCursorToNextToken(result.cursor),
   };
 }
 

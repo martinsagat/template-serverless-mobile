@@ -77,6 +77,7 @@ bin/
 | `pnpm lint` | Biome across workspaces |
 | `pnpm lint:fix` | Auto-fix Biome issues |
 | `pnpm rename <slug>` | One-shot rename (refuses if `node_modules` exists) |
+| `pnpm sync-env` | Sync `apps/web/admin/.env.local` from `.sst/outputs.json` |
 | `pnpm --filter @app/ui generate:tokens` | Regenerate `globals.css` from `tokens.ts` |
 
 ## SST resource type augmentation

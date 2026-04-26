@@ -17,7 +17,9 @@ SST v3 monorepo: Hono on Lambda + ElectroDB single-table DynamoDB + Next.js 16 w
 | ElectroDB entity definitions | `apps/api/src/db/entities/` |
 | Service-layer business logic | `apps/api/src/services/<domain>/` |
 | Hono routes (per portal) | `apps/api/src/hono/routes/{admin,consumer}/` |
-| Middleware (auth, cors, logger, errors) | `apps/api/src/hono/middleware/` |
+| Middleware (auth, cors, logger, errors, validationHook) | `apps/api/src/hono/middleware/` |
+| Per-stage helpers (`isDocsEnabled`, `isProduction`) | `apps/api/src/hono/helpers/stage.ts` |
+| Cross-cutting utilities (errors, logger, pagination, dates, semver, normalizeEmail) | `apps/api/src/lib/` |
 | Shared zod schemas / types | `packages/types/src/<domain>.ts` |
 | Web auth wrapper (Amplify v6) | `packages/auth/src/` |
 | MUI theme + design tokens | `packages/ui/src/theme/` |
@@ -28,6 +30,7 @@ SST v3 monorepo: Hono on Lambda + ElectroDB single-table DynamoDB + Next.js 16 w
 | Next.js sites infra | `infra/web.ts` |
 | Per-stage dispatch | `infra/deployments/{development,uat,production}.ts` |
 | Placeholder rename script | `bin/rename.ts` |
+| Sync `.env.local` from SST outputs | `scripts/sync-env-from-outputs.ts` (run via `pnpm sync-env`) |
 
 ## Conventions
 
@@ -36,6 +39,12 @@ SST v3 monorepo: Hono on Lambda + ElectroDB single-table DynamoDB + Next.js 16 w
 - **Zod is the contract.** Schemas in `packages/types` are imported by both API and web — change them in one place.
 - **Errors flow up, not down.** Services throw `ServiceError.{notFound,invalidInput,conflict,unauthorized,validation}(...)` (`apps/api/src/lib/errors.ts`). Routes don't catch — the global `errorHandler` middleware (`apps/api/src/hono/middleware/errorHandler.ts`) maps `ServiceError` → status code, logs unexpected errors to the request-scoped logger, and returns a uniform `{ error }` envelope. Why no try/catch in routes: `@hono/zod-openapi` strict-types responses, so mixing 2xx and 4xx returns from a single handler trips the type system. The `mapServiceError` helper in `hono/helpers/` is available if you ever need explicit per-route handling.
 - **Per-request logger.** `requestLogger` middleware sets `c.var.log` and `c.var.requestId` on each request. Auth middleware enriches it with `userSub`/`userEmail`. Use `c.get('log').info('...', { ... })` in routes and services for traceable logs. Local dev gets coloured output; Lambda emits one JSON line per entry for CloudWatch Logs Insights.
+- **Validation goes through `validationHook`.** Each `OpenAPIHono` is constructed with `defaultHook: validationHook`, so zod-validated request inputs that fail produce a uniform 400 with `issues[]`. Don't try/catch ZodError in routes — the hook owns it.
+- **OpenAPI Bearer auth.** Each portal app registers a `bearerAuth` security scheme so Swagger UI shows the **Authorize** button. Auth-gated routes inherit it via the global `security: [{ bearerAuth: [] }]` on the spec.
+- **Docs are stage-gated.** `/docs` and `/openapi.json` are only mounted when `isDocsEnabled()` returns true (dev + uat). Production hides the schema. Override per project if you need a public spec.
+- **Pagination is uniform.** Use `parsePaginationOptions(event)` to extract `{ limit, lastKey }` and `electroCursorToNextToken(result.cursor)` to encode the response cursor — both in `apps/api/src/lib/pagination.ts`. Default page size 20, max 100.
+- **Dates are ISO UTC.** Use `toIsoString` / `normalizeUtcIsoString` (`lib/dates.ts`) at every boundary. Never trust untyped `Date | string | number` fields.
+- **Emails are normalised.** Apply `normalizeEmail(input)` (`lib/normalizeEmail.ts`) before any store/lookup so case + whitespace can't create duplicates.
 - **Lazy env on web.** `apps/web/admin/src/lib/env.ts` validates `process.env.NEXT_PUBLIC_*` on first call, not at module load. Why: SST injects env at deploy time, so a fresh-clone `next build` would otherwise crash.
 - **Force-dynamic admin pages.** Auth-gated routes are session-dependent. The admin layout sets `dynamic = 'force-dynamic'` so Next never tries to prerender them.
 - **MUI theme wrapper.** RSC layouts can't pass functions across the client boundary, and the MUI theme has function-valued fields. `ThemeRegistry` (a `'use client'` wrapper) is the only place the theme is constructed.

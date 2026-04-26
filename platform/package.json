@@ -27,6 +27,7 @@
     "format": "biome format --write .",
     "migrate": "pnpm exec sst shell -- pnpm --filter @app/api run migrate",
     "rename": "tsx bin/rename.ts",
+    "sync-env": "tsx scripts/sync-env-from-outputs.ts",
     "prepare": "husky"
   },
   "devDependencies": {
